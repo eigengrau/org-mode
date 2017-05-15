@@ -5266,6 +5266,77 @@ Paragraph<point>"
 	 (org-element-type (org-element-context))))))
 
 
+;;; Refile
+
+(defvar test-org/refile-use-outline-path-examples-dir
+  (file-truename "../examples/refile/")
+  "Absolute path to example files used in ‘org-refile’ tests.")
+
+(defvar test-org/refile-use-outline-path-targets
+  `((nil . ("a/1/2"
+	    "a/2/2"
+	    "b/1/2"
+	    "b/2/2"))
+    (file . ("a.org"
+	     "a.org/a\\/1\\/1/a\\/1\\/2"
+	     "a.org/a\\/2\\/1/a\\/2\\/2"
+	     "b.org"
+	     "b.org/b\\/1\\/1/b\\/1\\/2"
+	     "b.org/b\\/2\\/1/b\\/2\\/2"))
+    (full-file-path . ,(mapcar (lambda (s)
+				 (concat test-org/refile-use-outline-path-examples-dir s))
+			       '("a.org"
+				 "a.org/a\\/1\\/1/a\\/1\\/2"
+				 "a.org/a\\/2\\/1/a\\/2\\/2"
+				 "b.org"
+				 "b.org/b\\/1\\/1/b\\/1\\/2"
+				 "b.org/b\\/2\\/1/b\\/2\\/2")))
+    (buffer-name . ("a.org"
+		    "a.org/a\\/1\\/1/a\\/1\\/2"
+		    "a.org/a\\/2\\/1/a\\/2\\/2"
+		    "gratuitous-prefix/b.org"
+		    "gratuitous-prefix/b.org/b\\/1\\/1/b\\/1\\/2"
+		    "gratuitous-prefix/b.org/b\\/2\\/1/b\\/2\\/2")))
+  "Alist of ‘refile-use-outline-path’ settings and associated \
+expected refile targets.")
+
+(defmacro test-org/refile-get-targets (use-outline-path)
+  "Helper macro to test ‘org-refile-get-targets’ with \
+‘org-refile-use-outline-path’ set to USE-OUTLINE-PATH."
+  `(save-window-excursion
+     (let ((org-refile-targets '((("a.org" "b.org")
+				  :level . 2)))
+	   (org-refile-use-outline-path ,use-outline-path))
+       (cd test-org/refile-use-outline-path-examples-dir)
+       (find-file-read-only "a.org")
+       (find-file-read-only "b.org")
+       (rename-buffer "gratuitous-prefix/b.org")
+       (should (equal
+		(mapcar #'car (org-refile-get-targets))
+		(alist-get ,use-outline-path
+			   test-org/refile-use-outline-path-targets))))))
+
+(ert-deftest test-org/refile-get-targets-no-outline-path ()
+  "Test ‘org-refile-get-targets’ with \
+‘org-refile-use-outline-path’ to ‘nil’."
+  (test-org/refile-get-targets nil))
+
+(ert-deftest test-org/refile-get-targets-full-file-path ()
+  "Test ‘org-refile-get-targets’ with \
+‘org-refile-use-outline-path’ set to ‘full-file-path’."
+  (test-org/refile-get-targets 'full-file-path))
+
+(ert-deftest test-org/refile-get-targets-buffer-name ()
+  "Test `org-refile-get-targets' with \
+`org-refile-use-outline-path' set to ‘buffer-name’."
+  (test-org/refile-get-targets 'buffer-name))
+
+(ert-deftest test-org/refile-get-targets-file ()
+  "Test `org-refile-get-targets' with \
+`org-refile-use-outline-path' set to ‘file’."
+  (test-org/refile-get-targets 'file))
+
+
 ;;; Sparse trees
 
 (ert-deftest test-org/match-sparse-tree ()
