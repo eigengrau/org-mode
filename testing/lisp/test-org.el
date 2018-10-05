@@ -5789,6 +5789,73 @@ Paragraph<point>"
 	    (org-refile-targets `((nil :level . 1))))
        (member (buffer-name) (mapcar #'car (org-refile-get-targets)))))))
 
+(ert-deftest test-org/org-refile ()
+  "Test `org-refile' specifications."
+  ;; Create new parent nodes via `org--refile-new-path'.
+  (let* ((low-calorie-buffer "* Cake
+** Topping
+*** Rainbow chocolates
+*** Pistachio icing
+** Filling
+*** Banana ice cream
+*** Cookie dough
+*** Crispy crunch
+* Extra Ingredients
+** Marshmallows
+")
+	 (low-calorie-buffer-target "* Cake
+** Topping
+*** Rainbow chocolates
+*** Pistachio icing
+** Filling
+*** Banana ice cream
+*** Cookie dough
+*** Crispy crunch
+** Bottom
+*** Base
+**** Marshmallows
+* Extra Ingredients
+")
+	 (cursor-after "Marshmallows")
+	 (org-refile-use-outline-path t)
+	 (org-refile-targets nil)
+	 (org-refile-allow-creating-parent-nodes t))
+    (dolist (refile-target '("Cake/Bottom/Base"
+			     "Cake/Bottom/Base/"))
+      (should
+       (equal
+	(org-test-with-temp-text-in-file low-calorie-buffer
+	  (re-search-forward cursor-after)
+	  (cl-letf (((symbol-function 'completing-read)
+		     (lambda (&rest args) refile-target)))
+	    (call-interactively #'org-refile))
+	  (buffer-string))
+	low-calorie-buffer-target))))
+  ;; Create new root nodes via `org--refile-new-path'.
+  (let* ((have-buffer "* Onions
+* Pepper
+* Ham
+")
+	 (want-buffer "* Pepper
+* Ham
+* Bread
+** Onions
+")
+	 (cursor-after "Onions")
+	 (refile-target "Bread")
+	 (org-refile-use-outline-path nil)
+	 (org-refile-targets nil)
+	 (org-refile-allow-creating-parent-nodes t))
+    (should
+     (equal
+      (org-test-with-temp-text-in-file have-buffer
+	(re-search-forward cursor-after)
+	(cl-letf (((symbol-function 'completing-read)
+		   (lambda (&rest args) refile-target)))
+	  (call-interactively #'org-refile))
+	(buffer-string))
+      want-buffer))))
+
 
 
 ;;; Sparse trees

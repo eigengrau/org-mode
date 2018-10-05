@@ -11450,7 +11450,7 @@ this function appends the default value from
 				  (concat " (default " (car org-refile-history) ")"))
 			     (and (assoc cbnex tbl) (setq cdef cbnex)
 				  (concat " (default " cbnex ")"))) ": "))
-	 pa answ parent-target child parent old-hist)
+	 pa answ old-hist)
     (setq old-hist org-refile-history)
     (setq answ (funcall cfunc prompt tbl nil (not new-nodes)
 			nil 'org-refile-history (or cdef (car org-refile-history))))
@@ -11467,17 +11467,11 @@ this function appends the default value from
 	    (when (equal (car org-refile-history) (nth 1 org-refile-history))
 	      (pop org-refile-history)))
 	  pa)
-      (if (string-match "\\`\\(.*\\)/\\([^/]+\\)\\'" answ)
-	  (progn
-	    (setq parent (match-string 1 answ)
-		  child (match-string 2 answ))
-	    (setq parent-target (org-refile--get-location parent tbl))
-	    (when (and parent-target
-		       (or (eq new-nodes t)
-			   (and (eq new-nodes 'confirm)
-				(y-or-n-p (format "Create new node \"%s\"? "
-						  child)))))
-	      (org-refile-new-child parent-target child)))
+      (if (or (eq new-nodes t)
+	      (and (eq new-nodes 'confirm)
+		   (y-or-n-p (format "Create new path \"%s\"? "
+				     answ))))
+	  (org--refile-new-path answ tbl)
 	(user-error "Invalid target location")))))
 
 (declare-function org-string-nw-p "org-macs" (s))
@@ -11501,29 +11495,52 @@ this function appends the default value from
 	   (unless (looking-at-p re)
 	     (user-error "Invalid refile position, please clear the cache with `C-0 C-c C-w' before refiling"))))))))
 
+(defun org--refile-new-path (path tbl)
+  "Ensure that all parent nodes leading to refile target PATH exist.
+
+Use TBL as a look-up table for existing nodes.
+
+Return the corresponding refile location."
+  (let ((target (org-refile--get-location path tbl)))
+    (or target
+	(let (parent child)
+	  (if (string-match "\\`\\(.*\\)/\\([^/]+\\)/?\\'" path)
+	      (progn
+		(setq child (match-string 2 path))
+		(setq parent (org--refile-new-path (match-string 1 path) tbl)))
+	    (setq child path))
+	  (org-refile-new-child parent child)))))
+
+
 (defun org-refile-new-child (parent-target child)
-  "Use refile target PARENT-TARGET to add new CHILD below it."
-  (unless parent-target
-    (error "Cannot find parent for new node"))
-  (let ((file (nth 1 parent-target))
-	(pos (nth 3 parent-target))
-	level)
+  "Use refile target PARENT-TARGET to add new CHILD below it.
+
+When PARENT-TARGET is ‘nil’, child will be added below the
+outline root of the current file."
+  (let (file pos)
+    (if parent-target
+	(progn
+	  (setq file (nth 1 parent-target))
+	  (setq pos (nth 3 parent-target)))
+      (setq file (buffer-file-name)))
     (with-current-buffer (or (find-buffer-visiting file)
 			     (find-file-noselect file))
       (org-with-wide-buffer
        (if pos
-	   (goto-char pos)
+	   (progn
+	     (goto-char pos)
+	     (org-insert-heading-respect-content)
+	     (org-do-demote))
+	 ;; New node is top-level
 	 (goto-char (point-max))
-	 (unless (bolp) (newline)))
-       (when (looking-at org-outline-regexp)
-	 (setq level (funcall outline-level))
-	 (org-end-of-subtree t t))
-       (org-back-over-empty-lines)
-       (insert "\n" (make-string
-		     (if pos (org-get-valid-level level 1) 1) ?*)
-	       " " child "\n")
-       (beginning-of-line 0)
-       (list (concat (car parent-target) "/" child) file "" (point))))))
+	 (unless (bolp) (newline))
+	 (org-insert-heading nil t t))
+       (insert child)
+       (beginning-of-line)
+       (list (if parent-target
+		 (format "%s/%s" (car parent-target) child)
+	       child)
+	     file "" (point))))))
 
 (defun org-olpath-completing-read (prompt collection &rest args)
   "Read an outline path like a file name."
